@@ -41,6 +41,6 @@ key.properties
 **/*.keystore
 **/*.jks
 
-#**.json
-#**.pflist
-#**firebase_options.dart
+**.json
+**.pflist
+**firebase_options.dart
