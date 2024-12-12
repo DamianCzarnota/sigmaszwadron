@@ -2,28 +2,36 @@ import httpx
 from typing import Any, Dict, Optional, List
 from datetime import datetime, timedelta
 import random
-
+import sys
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import storage
 
-from firebase_admin import credentials
+from firebase_admin import credentials, db
+import uuid
 
 class FirebaseUploader:
 
-    def __init__(self, bucket_name):
-        cred = credentials.Certificate("sigmaszwadron-firebase-adminsdk-zswuv-68daf9ec00.json")
-        firebase_admin.initialize_app(cred, {
-            'storageBucket': bucket_name
-        })
+    def __init__(self, database_service):
         self.bucket = storage.bucket()
+        self.metadata_uploader = database_service
 
-    def upload_image(self, image_content, image_name):
+    def upload_image(self, image_content, image_name, unique_id):
+        try:
+            blob = self.bucket.blob(image_name)
+            blob.metadata = {'id': unique_id}
 
-        blob = self.bucket.blob(image_name)
-        blob.upload_from_string(image_content, content_type="image/jpeg")
-        public_url = blob.public_url
-        print(f"Image uploaded successfully! Public URL: {public_url}")
+            
+            blob.upload_from_string(image_content, content_type="image/jpeg")
+            public_url = blob.public_url
+            print(f"Image uploaded successfully! Public URL: {public_url}")
+
+            return public_url
+            
+        except httpx.RequestError as e:
+            print(f"Failed to upload {public_url}: {e}")
+
+        
 
 class RestClient:
 
@@ -57,12 +65,23 @@ class ApiService:
             return [json_data]
         else:
             raise ValueError("Unexpected JSON structure")
-        
+
+class FirebaseDatabaseHandler:
+
+    def __init__(self, path):
+        self.path = path
+
+    def write_metadata(self, metadata, id):
+        ref = db.reference(self.path + id)
+        result = ref.set(metadata)
+        print(result)
+        print(f"Data saved to Firebase Realtime Database at path: {self.path}{id}")
   
 class ImageDownloader:
 
-    def __init__(self, uploader):
-        self.uploader = uploader
+    def __init__(self):
+        pass
+        
 
     def download_image(self, image_url, image_title):
 
@@ -73,7 +92,7 @@ class ImageDownloader:
                 response.raise_for_status()
                 image_content = b"".join(response.iter_bytes())
 
-            self.uploader.upload_image(image_content, f"{image_title}.jpg")
+            return image_content
 
             
         except httpx.RequestError as e:
@@ -91,24 +110,41 @@ def get_random_date(start_year=2016, end_year=2024):
 
 # Example Usage
 async def main():
+    
     base_url = "https://api.nasa.gov"
+    cred = credentials.Certificate(sys.argv[1])
+    firebase_admin.initialize_app(cred, {
+            'storageBucket': sys.argv[2],
+            'databaseURL': sys.argv[3]
+    })
     rest_client = RestClient(base_url)
     api_service = ApiService(rest_client)
-    uploader = FirebaseUploader('gs://sigmaszwadron.firebasestorage.app')
-    downloader_service = ImageDownloader(uploader)
+    database_service = FirebaseDatabaseHandler("images/")
+    uploader_service = FirebaseUploader(database_service)
+    downloader_service = ImageDownloader()
 
     # Define the API endpoint and query parameters
     endpoint = "/planetary/apod"
     random_date = get_random_date()
-    query_params = {"api_key": "", "start_date": random_date, "end_date": random_date}
+    query_params = {"api_key": sys.argv[4], "start_date": random_date, "end_date": random_date}
 
     # Fetch and process data
     try:
         data = await api_service.fetch_data(endpoint, query_params)
         for i, item in enumerate(data):
-            print(item["url"])
-            print()
-            downloader_service.download_image(item["url"],item["title"])
+            if "url" in item and item["media_type"] == "image":
+                unique_id = str(uuid.uuid4())
+                metadata = {
+                    "title": item["title"],
+                    "description": item["explanation"],
+                    "date": item["date"]
+                    }
+                image_title = item.get("title", f"image_{i}").replace(" ", "_").replace("/", "-")
+                image = downloader_service.download_image(item["url"],item["title"])
+                public_url = uploader_service.upload_image(image, image_title + ".jpg", unique_id)
+                metadata["url"] = public_url
+                database_service.write_metadata(metadata,unique_id)
+
     except httpx.HTTPStatusError as e:
         print(f"HTTP error occurred: {e}")
     except Exception as e:
