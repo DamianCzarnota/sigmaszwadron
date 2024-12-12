@@ -6,7 +6,7 @@ import sys
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import storage
-
+import os
 from firebase_admin import credentials, db
 import uuid
 
@@ -111,11 +111,12 @@ def get_random_date(start_year=2016, end_year=2024):
 # Example Usage
 async def main():
     
+    
     base_url = "https://api.nasa.gov"
-    cred = credentials.Certificate(sys.argv[1])
+    cred = credentials.Certificate(os.environ['GCP_JSON_PATH'])
     firebase_admin.initialize_app(cred, {
-            'storageBucket': sys.argv[2],
-            'databaseURL': sys.argv[3]
+            'storageBucket': os.environ['BUCKET_NAME'],
+            'databaseURL': os.environ['REALTIMEDB_NAME']
     })
     rest_client = RestClient(base_url)
     api_service = ApiService(rest_client)
@@ -126,7 +127,7 @@ async def main():
     # Define the API endpoint and query parameters
     endpoint = "/planetary/apod"
     random_date = get_random_date()
-    query_params = {"api_key": sys.argv[4], "start_date": random_date, "end_date": random_date}
+    query_params = {"api_key": os.environ['NASA_API_KEY'], "start_date": random_date, "end_date": random_date}
 
     # Fetch and process data
     try:
