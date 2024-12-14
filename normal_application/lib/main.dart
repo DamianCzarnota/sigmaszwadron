@@ -1,125 +1,328 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'firebase_options.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String email = 'testuser@sigmaszwadron.com';
+  final String password = 'testuser';
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Firebase Image Title App',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+        primarySwatch: Colors.blue,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: FutureBuilder<User?>(
+        future: _signIn(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          } else {
+            if (snapshot.hasData) {
+              return TitleListScreen();
+            } else {
+              return Scaffold(
+                body: Center(child: Text('Nie udało się zalogować')),
+              );
+            }
+          }
+        },
+      ),
+    );
+  }
+
+  Future<User?> _signIn() async {
+    try {
+      UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+      return userCredential.user;
+    } catch (e) {
+      print('Błąd logowania: $e');
+      return null;
+    }
+  }
+}
+
+class ImageItem {
+  final String id;
+  final String title;
+  final String? userTitle;
+  final String description;
+
+  ImageItem({
+    required this.id,
+    required this.title,
+    this.userTitle,
+    required this.description,
+  });
+
+  String get displayTitle => userTitle ?? title;
+}
+
+class TitleListScreen extends StatefulWidget {
+  @override
+  _TitleListScreenState createState() => _TitleListScreenState();
+}
+
+class _TitleListScreenState extends State<TitleListScreen> {
+  bool _isLoading = true;
+  List<ImageItem> _imageItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTitlesFromDatabase();
+  }
+
+  Future<void> _fetchTitlesFromDatabase() async {
+    try {
+      final ref = FirebaseDatabase.instance.ref("images");
+      final snapshot = await ref.get();
+
+      if (snapshot.exists) {
+        List<ImageItem> items = [];
+        Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+        data.forEach((key, value) {
+          if (value is Map) {
+            final title = value['title'] as String? ?? 'Brak tytułu';
+            final userTitle = value['userTitle'] as String?;
+            final description = value['description'] as String? ?? 'Brak opisu';
+            items.add(ImageItem(
+              id: key,
+              title: title,
+              userTitle: userTitle,
+              description: description,
+            ));
+          }
+        });
+
+        setState(() {
+          _imageItems = items;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _imageItems = [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Błąd pobierania danych z Realtime Database: $e');
+      setState(() {
+        _imageItems = [];
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Lista Tytułów Obrazków'),
+      ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator())
+          : _imageItems.isEmpty
+          ? Center(child: Text('Brak obrazków'))
+          : ListView.builder(
+        itemCount: _imageItems.length,
+        itemBuilder: (context, index) {
+          final item = _imageItems[index];
+          return ListTile(
+            title: Text(item.displayTitle),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ImageDetailScreen(
+                    imageItem: item,
+                  ),
+                ),
+              ).then((_) {
+                _fetchTitlesFromDatabase();
+              });
+            },
+          );
+        },
+      ),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class ImageDetailScreen extends StatefulWidget {
+  final ImageItem imageItem;
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  ImageDetailScreen({required this.imageItem});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _ImageDetailScreenState createState() => _ImageDetailScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class _ImageDetailScreenState extends State<ImageDetailScreen> {
+  late Future<String> _downloadUrlFuture;
 
   @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
+  void initState() {
+    super.initState();
+    _downloadUrlFuture = _fetchDownloadUrl(widget.imageItem.title);
+  }
+
+  Future<String> _fetchDownloadUrl(String fileName) async {
+    String sanitizedFileName = fileName.replaceAll(' ', '_');
+    final storage = FirebaseStorage.instance;
+
+    final listResult = await storage.ref().listAll();
+
+    final matchingRef = listResult.items.firstWhere(
+            (ref) => ref.name.startsWith(sanitizedFileName),
+        orElse: () => throw Exception('Nie znaleziono pliku dla $sanitizedFileName')
+    );
+
+    return await matchingRef.getDownloadURL();
+  }
+
+  void _editData() async {
+    final newUserTitleController = TextEditingController(text: widget.imageItem.userTitle ?? widget.imageItem.title);
+    final newDescriptionController = TextEditingController(text: widget.imageItem.description);
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edytuj'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: newUserTitleController,
+              decoration: InputDecoration(labelText: 'Nowy tytuł (userTitle)'),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            TextField(
+              controller: newDescriptionController,
+              decoration: InputDecoration(labelText: 'Opis'),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            child: Text('Anuluj'),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          TextButton(
+            child: Text('Zapisz'),
+            onPressed: () async {
+              final ref = FirebaseDatabase.instance.ref('images/${widget.imageItem.id}');
+              await ref.update({
+                'userTitle': newUserTitleController.text,
+                'description': newDescriptionController.text,
+              });
+              Navigator.pop(ctx);
+              setState(() {
+              });
+            },
+          ),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+    await _refreshData();
+  }
+
+  Future<void> _refreshData() async {
+    final ref = FirebaseDatabase.instance.ref('images/${widget.imageItem.id}');
+    final snapshot = await ref.get();
+    if (snapshot.exists && snapshot.value is Map) {
+      final data = snapshot.value as Map;
+      final userTitle = data['userTitle'] as String?;
+      final description = data['description'] as String? ?? 'Brak opisu';
+
+      final updatedItem = ImageItem(
+        id: widget.imageItem.id,
+        title: widget.imageItem.title,
+        userTitle: userTitle,
+        description: description,
+      );
+
+      setState(() {
+        _imageItem = updatedItem;
+      });
+    }
+  }
+
+  late ImageItem _imageItem = widget.imageItem;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_imageItem.displayTitle),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.edit),
+            onPressed: _editData,
+          )
+        ],
+      ),
+      body: FutureBuilder<String>(
+        future: _downloadUrlFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: CircularProgressIndicator(),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            return Center(
+              child: Text('Błąd wczytywania obrazka'),
+            );
+          } else {
+            final imageUrl = snapshot.data!;
+            return Center(
+              child: Column(
+                children: [
+                  SizedBox(height: 20),
+                  Text(
+                    _imageItem.displayTitle,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 20),
+                  Expanded(
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      placeholder: (context, url) =>
+                          Center(child: CircularProgressIndicator()),
+                      errorWidget: (context, url, error) => Icon(Icons.error),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      _imageItem.description,
+                      style: TextStyle(fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        },
+      ),
     );
   }
 }

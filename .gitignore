@@ -44,3 +44,4 @@ key.properties
 **/*.json
 **/*.pflist
 **/firebase_options.dart
+.idea
