@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -22,7 +23,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Firebase Image App',
+      title: 'Firebase Image Title App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -30,16 +31,13 @@ class MyApp extends StatelessWidget {
         future: _signIn(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            // Pokazuj spinner podczas logowania
             return Scaffold(
               body: Center(child: CircularProgressIndicator()),
             );
           } else {
             if (snapshot.hasData) {
-              // Jeśli zalogowano, przejdź do ekranu głównego
-              return ImageListScreen();
+              return TitleListScreen();
             } else {
-              // Jeśli logowanie się nie powiodło
               return Scaffold(
                 body: Center(child: Text('Nie udało się zalogować')),
               );
@@ -50,7 +48,6 @@ class MyApp extends StatelessWidget {
     );
   }
 
-  // Funkcja logowania
   Future<User?> _signIn() async {
     try {
       UserCredential userCredential = await FirebaseAuth.instance
@@ -63,104 +60,93 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class ImageListScreen extends StatefulWidget {
-  @override
-  _ImageListScreenState createState() => _ImageListScreenState();
+// Model do przechowywania informacji o obrazku
+class ImageItem {
+  final String id;
+  final String title;
+  final String description;
+
+  ImageItem({required this.id, required this.title, required this.description});
 }
 
-class _ImageListScreenState extends State<ImageListScreen> {
-  List<Reference> _images = [];
+class TitleListScreen extends StatefulWidget {
+  @override
+  _TitleListScreenState createState() => _TitleListScreenState();
+}
+
+class _TitleListScreenState extends State<TitleListScreen> {
   bool _isLoading = true;
+  List<ImageItem> _imageItems = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchImages();
+    _fetchTitlesFromDatabase();
   }
 
-  // Funkcja pobierająca listę zdjęć z Firebase Storage
-  Future<void> _fetchImages() async {
+  Future<void> _fetchTitlesFromDatabase() async {
     try {
-      FirebaseStorage storage = FirebaseStorage.instance;
-      ListResult result = await storage.ref().listAll();
-      setState(() {
-        _images = result.items;
-        _isLoading = false;
-      });
+      final ref = FirebaseDatabase.instance.ref("images");
+      final snapshot = await ref.get();
+
+      if (snapshot.exists) {
+        List<ImageItem> items = [];
+        Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+        data.forEach((key, value) {
+          if (value is Map) {
+            final title = value['title'] as String? ?? 'Brak tytułu';
+            final description = value['description'] as String? ?? 'Brak opisu';
+            items.add(
+                ImageItem(id: key, title: title, description: description));
+          }
+        });
+
+        setState(() {
+          _imageItems = items;
+          _isLoading = false;
+        });
+      } else {
+        // Brak elementów
+        setState(() {
+          _imageItems = [];
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      print('Błąd pobierania zdjęć: $e');
+      print('Błąd pobierania danych z Realtime Database: $e');
       setState(() {
+        _imageItems = [];
         _isLoading = false;
       });
     }
-  }
-
-  // Funkcja pobierająca URL dla zdjęcia
-  Future<String> _getImageUrl(Reference ref) async {
-    return await ref.getDownloadURL();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Galeria Zdjęć'),
+        title: Text('Lista Tytułów Obrazków'),
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
-          : _images.isEmpty
-              ? Center(child: Text('Brak zdjęć'))
-              : GridView.builder(
-                  padding: EdgeInsets.all(10),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // Liczba kolumn
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemCount: _images.length,
+          : _imageItems.isEmpty
+              ? Center(child: Text('Brak obrazków'))
+              : ListView.builder(
+                  itemCount: _imageItems.length,
                   itemBuilder: (context, index) {
-                    Reference imageRef = _images[index];
-                    return FutureBuilder<String>(
-                      future: _getImageUrl(imageRef),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        } else if (snapshot.hasError) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: Center(child: Icon(Icons.error)),
-                          );
-                        } else {
-                          String imageUrl = snapshot.data!;
-                          return GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ImageDetailScreen(
-                                    imageUrl: imageUrl,
-                                    imageName: imageRef.name,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              placeholder: (context, url) => Container(
-                                color: Colors.grey[300],
-                                child:
-                                    Center(child: CircularProgressIndicator()),
-                              ),
-                              errorWidget: (context, url, error) =>
-                                  Icon(Icons.error),
-                              fit: BoxFit.cover,
+                    final item = _imageItems[index];
+                    return ListTile(
+                      title: Text(item.title),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ImageDetailScreen(
+                              title: item.title,
+                              description: item.description,
                             ),
-                          );
-                        }
+                          ),
+                        );
                       },
                     );
                   },
@@ -169,38 +155,92 @@ class _ImageListScreenState extends State<ImageListScreen> {
   }
 }
 
-class ImageDetailScreen extends StatelessWidget {
-  final String imageUrl;
-  final String imageName;
+class ImageDetailScreen extends StatefulWidget {
+  final String title;
+  final String description;
 
-  ImageDetailScreen({required this.imageUrl, required this.imageName});
+  ImageDetailScreen({required this.title, required this.description});
+
+  @override
+  _ImageDetailScreenState createState() => _ImageDetailScreenState();
+}
+
+class _ImageDetailScreenState extends State<ImageDetailScreen> {
+  late Future<String> _downloadUrlFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _downloadUrlFuture = _fetchDownloadUrl(widget.title);
+  }
+
+  /// Funkcja wyszukuje plik w Firebase Storage, którego nazwa zaczyna się od podanego tytułu.
+  /// Zakładamy, że w Storage znajduje się dokładnie jeden plik pasujący do nazwy (po zamianie spacji na podkreślniki).
+  Future<String> _fetchDownloadUrl(String fileName) async {
+    String sanitizedFileName = fileName.replaceAll(' ', '_');
+    final storage = FirebaseStorage.instance;
+
+    // Pobieramy listę wszystkich plików z root bucket
+    final listResult = await storage.ref().listAll();
+    // Szukamy pierwszego pliku, którego nazwa zaczyna się od sanitizedFileName
+    final matchingRef = listResult.items.firstWhere(
+        (ref) => ref.name.startsWith(sanitizedFileName),
+        orElse: () =>
+            throw Exception('Nie znaleziono pliku dla $sanitizedFileName'));
+
+    return await matchingRef.getDownloadURL();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(imageName),
+        title: Text(widget.title),
       ),
-      body: Center(
-        child: Column(
-          children: [
-            SizedBox(height: 20),
-            Text(
-              imageName,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-            Expanded(
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                placeholder: (context, url) =>
-                    Center(child: CircularProgressIndicator()),
-                errorWidget: (context, url, error) => Icon(Icons.error),
-                fit: BoxFit.contain,
+      body: FutureBuilder<String>(
+        future: _downloadUrlFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(
+              child: CircularProgressIndicator(),
+            );
+          } else if (snapshot.hasError || !snapshot.hasData) {
+            return Center(
+              child: Text('Błąd wczytywania obrazka'),
+            );
+          } else {
+            final imageUrl = snapshot.data!;
+            return Center(
+              child: Column(
+                children: [
+                  SizedBox(height: 20),
+                  Text(
+                    widget.title,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 20),
+                  Expanded(
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      placeholder: (context, url) =>
+                          Center(child: CircularProgressIndicator()),
+                      errorWidget: (context, url, error) => Icon(Icons.error),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      widget.description,
+                      style: TextStyle(fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
+            );
+          }
+        },
       ),
     );
   }
