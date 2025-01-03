@@ -27,7 +27,10 @@ android {
         applicationId = "com.example.normal_application"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+
+        //For me, Android app agreed to be built only after setting minSdk to 23
+        //flutter.minSdkVersion==21 due to firebase_auth.dart
+        minSdk = /*flutter.minSdkVersion*/ 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
