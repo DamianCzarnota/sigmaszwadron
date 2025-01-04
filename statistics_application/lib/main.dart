@@ -1,125 +1,187 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:googleapis/storage/v1.dart';
+import 'package:googleapis_auth/auth_io.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:developer';
 
-void main() {
-  runApp(const MyApp());
-}
+void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+        primarySwatch: Colors.blue,
+        cardTheme: CardTheme(
+          elevation: 4,
+          margin: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: MetricsPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class MetricsPage extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _MetricsPageState createState() => _MetricsPageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _MetricsPageState extends State<MetricsPage> {
+  final String _bucketName = "sigmaszwadron.firebasestorage.app";
+  final String _serviceAccountKeyPath = "assets/service_account_key.json";
 
-  void _incrementCounter() {
+  Map<String, dynamic> _metrics = {};
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStorageMetrics();
+  }
+
+  Future<void> _fetchStorageMetrics() async {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _loading = true;
     });
+
+    try {
+      final credentials = ServiceAccountCredentials.fromJson(
+        json.decode(await DefaultAssetBundle.of(context).loadString(_serviceAccountKeyPath)),
+      );
+
+      final client = await clientViaServiceAccount(
+        credentials,
+        [StorageApi.devstorageReadOnlyScope],
+      );
+
+      final storageApi = StorageApi(client);
+      final objects = await storageApi.objects.list(_bucketName);
+
+      if (objects.items == null || objects.items!.isEmpty) {
+        setState(() {
+          _metrics = {"Error": "No objects found in the bucket."};
+          _loading = false;
+        });
+        return;
+      }
+
+      // Metrics calculation
+      int totalFiles = objects.items!.length;
+      double totalSize = 0;
+      double largestSize = 0;
+      double smallestSize = double.maxFinite;
+      Map<String, int> sizeDistribution = {
+        "0–1 MB": 0,
+        "1–10 MB": 0,
+        "10–100 MB": 0,
+        ">100 MB": 0,
+      };
+
+      for (var obj in objects.items!) {
+        double size = double.tryParse(obj.size ?? "0") ?? 0;
+        totalSize += size;
+        largestSize = size > largestSize ? size : largestSize;
+        smallestSize = size < smallestSize ? size : smallestSize;
+        if (size <= 1 * 1024 * 1024) {
+          sizeDistribution["0–1 MB"] = sizeDistribution["0–1 MB"]! + 1;
+        } else if (size <= 10 * 1024 * 1024) {
+          sizeDistribution["1–10 MB"] = sizeDistribution["1–10 MB"]! + 1;
+        } else if (size <= 100 * 1024 * 1024) {
+          sizeDistribution["10–100 MB"] = sizeDistribution["10–100 MB"]! + 1;
+        } else {
+          sizeDistribution[">100 MB"] = sizeDistribution[">100 MB"]! + 1;
+        }
+      }
+
+      setState(() {
+        _metrics = {
+          "Total Files": totalFiles,
+          "Total Size (MB)": (totalSize / (1024 * 1024)).toStringAsFixed(2),
+          "Largest File (MB)": (largestSize / (1024 * 1024)).toStringAsFixed(2),
+          "Smallest File (MB)": (smallestSize / (1024 * 1024)).toStringAsFixed(2),
+          "File Size Distribution": sizeDistribution,
+        };
+        _loading = false;
+      });
+
+      client.close();
+    } catch (e) {
+      setState(() {
+        _metrics = {"Error": e.toString()};
+        _loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: Text("Bucket Metrics"),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _fetchStorageMetrics,
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
+      body: _loading
+          ? Center(child: CircularProgressIndicator())
+          : _metrics.containsKey("Error")
+              ? Center(child: Text(_metrics["Error"]))
+              : ListView(
+                  children: [
+                    _buildMetricCard("Total Files", _metrics["Total Files"].toString(), Icons.folder),
+                    _buildMetricCard("Total Size (MB)", _metrics["Total Size (MB)"], Icons.storage),
+                    _buildMetricCard("Largest File (MB)", _metrics["Largest File (MB)"], Icons.file_present),
+                    _buildMetricCard("Smallest File (MB)", _metrics["Smallest File (MB)"], Icons.file_copy),
+                    _buildChartCard("File Size Distribution", _metrics["File Size Distribution"]),
+                  ],
+                ),
+    );
+  }
+
+  Widget _buildMetricCard(String title, String value, IconData icon) {
+    return Card(
+      child: ListTile(
+        leading: Icon(icon, size: 40, color: Colors.blue),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(value, style: TextStyle(fontSize: 18)),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+
+  Widget _buildChartCard(String title, Map<String, int> distribution) {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.pie_chart, size: 40, color: Colors.green),
+            title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          SizedBox(
+            height: 200,
+            child: PieChart(
+              PieChartData(
+                sections: distribution.entries.map((entry) {
+                  final percentage = entry.value / _metrics["Total Files"];
+                  return PieChartSectionData(
+                    value: percentage * 100,
+                    title: "${entry.key}\n${(percentage * 100).toStringAsFixed(1)}%",
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
