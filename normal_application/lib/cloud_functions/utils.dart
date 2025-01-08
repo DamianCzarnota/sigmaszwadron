@@ -6,6 +6,7 @@ const String IMAGE_EXTENSION = ".jpg";
 const String FIREBASE_FUNCTION_URL =
     "https://us-central1-sigmaszwadron.cloudfunctions.net/generate_preview";
 const int DEFAULT_IMAGE_SIZE = 400;
+const int MAX_IMAGES_PER_PAGE = 10;
 
 const String phoneType = "smartphone";
 const String desktopType = "desktop";

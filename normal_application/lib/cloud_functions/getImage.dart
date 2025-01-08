@@ -66,12 +66,14 @@ class PreviewWidget extends StatelessWidget {
         future: fetchImageForSmartphone(title, true),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            // Wyświetlanie tytułu podczas ładowania
-            return Center(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 12),
-                overflow: TextOverflow.ellipsis,
+            return Container(
+              color: Colors.grey[300],
+              child: Center(
+                child: Icon(
+                  Icons.image,
+                  size: 24,
+                  color: Colors.grey[600],
+                ),
               ),
             );
           }
