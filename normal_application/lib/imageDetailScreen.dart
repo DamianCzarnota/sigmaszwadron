@@ -44,18 +44,33 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Edit'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: newUserTitleController,
-              decoration: const InputDecoration(labelText: 'New title'),
-            ),
-            TextField(
-              controller: newDescriptionController,
-              decoration: const InputDecoration(labelText: 'Description'),
-            ),
-          ],
+        content: SingleChildScrollView(
+          // Zapewnia przewijanie w przypadku małych ekranów
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Pole do edycji tytułu użytkownika
+              TextField(
+                controller: newUserTitleController,
+                decoration: const InputDecoration(labelText: 'New title'),
+              ),
+              const SizedBox(height: 16.0), // Dodanie odstępu
+              // Pole do edycji opisu
+              SizedBox(
+                height: 150, // Ustalona wysokość pola
+                child: TextField(
+                  controller: newDescriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.multiline,
+                  maxLines: null, // Pozwala na dowolną liczbę linii
+                  expands: true, // Wypełnia dostępne miejsce w pionie
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
