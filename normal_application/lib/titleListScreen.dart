@@ -3,22 +3,24 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:normal_application/imageDetailScreen.dart';
 import 'package:normal_application/cloud_functions/getImage.dart';
 import 'package:normal_application/imageItem.dart';
+import 'package:normal_application/cloud_functions/utils.dart';
 
 class TitleListScreen extends StatefulWidget {
-  const TitleListScreen({Key? key}) : super(key: key);
-
   @override
   _TitleListScreenState createState() => _TitleListScreenState();
 }
 
 class _TitleListScreenState extends State<TitleListScreen> {
+  final DatabaseReference _databaseRef =
+      FirebaseDatabase.instance.ref('images');
+  List<ImageItem> _allImageItems = [];
+  List<ImageItem> _filteredImageItems = [];
   bool _isLoading = true;
-  List<ImageItem> _imageItems = [];
-
-  // Paginacja
-  static const int itemsPerPage = 10;
+  String _searchQuery = '';
+  final int _itemsPerPage = MAX_IMAGES_PER_PAGE;
   int _currentPage = 1;
   int _totalPages = 1;
+  List<ImageItem> _currentPageItems = [];
 
   @override
   void initState() {
@@ -28,63 +30,74 @@ class _TitleListScreenState extends State<TitleListScreen> {
 
   Future<void> _fetchTitlesFromDatabase() async {
     try {
-      final ref = FirebaseDatabase.instance.ref("images");
-      final snapshot = await ref.get();
-
+      final snapshot = await _databaseRef.get();
       if (snapshot.exists) {
-        List<ImageItem> items = [];
-        Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        List<ImageItem> imageItems = [];
         data.forEach((key, value) {
-          if (value is Map) {
-            final title = value['title'] as String? ?? 'no title';
-            final userTitle = value['userTitle'] as String?;
-            final description =
-                value['description'] as String? ?? 'no description';
-            items.add(ImageItem(
-              id: key,
-              title: title,
-              userTitle: userTitle,
-              description: description,
-            ));
-          }
+          imageItems.add(ImageItem.fromMap(value, key));
         });
 
-        _totalPages = (items.length / itemsPerPage).ceil();
-
         setState(() {
-          _imageItems = items;
+          _allImageItems = imageItems;
+          _applyFilter();
           _isLoading = false;
         });
       } else {
         setState(() {
-          _imageItems = [];
-          _isLoading = false;
+          _allImageItems = [];
+          _filteredImageItems = [];
+          _currentPageItems = [];
           _totalPages = 1;
+          _isLoading = false;
         });
       }
     } catch (e) {
-      print('Realtime Database fetching error: $e');
+      print('Error fetching data: $e');
       setState(() {
-        _imageItems = [];
         _isLoading = false;
-        _totalPages = 1;
       });
     }
   }
 
-  List<ImageItem> get _currentPageItems {
-    int startIndex = (_currentPage - 1) * itemsPerPage;
-    int endIndex = startIndex + itemsPerPage;
-    if (endIndex > _imageItems.length) {
-      endIndex = _imageItems.length;
+  void _applyFilter() {
+    if (_searchQuery.isEmpty) {
+      _filteredImageItems = List.from(_allImageItems);
+    } else {
+      final query = _searchQuery.toLowerCase();
+      _filteredImageItems = _allImageItems.where((item) {
+        final searchTarget =
+            item.userTitle?.toLowerCase() ?? item.title.toLowerCase();
+        return searchTarget.contains(query);
+      }).toList();
     }
-    return _imageItems.sublist(startIndex, endIndex);
+    _setupPagination();
+  }
+
+  void _setupPagination() {
+    _totalPages = (_filteredImageItems.length / _itemsPerPage).ceil();
+    _currentPage = 1;
+    _updateCurrentPageItems();
+  }
+
+  void _updateCurrentPageItems() {
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = startIndex + _itemsPerPage;
+    setState(() {
+      _currentPageItems = _filteredImageItems.sublist(
+        startIndex,
+        endIndex > _filteredImageItems.length
+            ? _filteredImageItems.length
+            : endIndex,
+      );
+    });
   }
 
   void _goToNextPage() {
     if (_currentPage < _totalPages) {
       setState(() {
-        _currentPage += 1;
+        _currentPage++;
+        _updateCurrentPageItems();
       });
     }
   }
@@ -92,9 +105,17 @@ class _TitleListScreenState extends State<TitleListScreen> {
   void _goToPreviousPage() {
     if (_currentPage > 1) {
       setState(() {
-        _currentPage -= 1;
+        _currentPage--;
+        _updateCurrentPageItems();
       });
     }
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      _searchQuery = query;
+      _applyFilter();
+    });
   }
 
   @override
@@ -103,14 +124,27 @@ class _TitleListScreenState extends State<TitleListScreen> {
       appBar: AppBar(
         title: const Text('List of images'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _imageItems.isEmpty
-              ? const Center(child: Text('no images'))
-              : Column(
-                  children: [
-                    Expanded(
-                      child: ListView.builder(
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                labelText: 'Search titles',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredImageItems.isEmpty
+                    ? const Center(child: Text('No images'))
+                    : ListView.builder(
                         itemCount: _currentPageItems.length,
                         itemBuilder: (context, index) {
                           final item = _currentPageItems[index];
@@ -127,11 +161,7 @@ class _TitleListScreenState extends State<TitleListScreen> {
                                   item.displayTitle,
                                   style: const TextStyle(fontSize: 16.0),
                                 ),
-                                leading: SizedBox(
-                                  width: 50,
-                                  height: 50,
-                                  child: PreviewWidget(title: item.title),
-                                ),
+                                leading: PreviewWidget(title: item.title),
                                 onTap: () {
                                   Navigator.push(
                                     context,
@@ -140,7 +170,6 @@ class _TitleListScreenState extends State<TitleListScreen> {
                                           ImageDetailScreen(imageItem: item),
                                     ),
                                   ).then((_) {
-                                    // Po powrocie z ekranu szczegółów odśwież listę
                                     _fetchTitlesFromDatabase();
                                   });
                                 },
@@ -149,31 +178,29 @@ class _TitleListScreenState extends State<TitleListScreen> {
                           );
                         },
                       ),
-                    ),
-                    if (_totalPages > 1)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16.0, horizontal: 32.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            ElevatedButton(
-                              onPressed:
-                                  _currentPage > 1 ? _goToPreviousPage : null,
-                              child: const Text('Previous'),
-                            ),
-                            Text('Page $_currentPage out of $_totalPages'),
-                            ElevatedButton(
-                              onPressed: _currentPage < _totalPages
-                                  ? _goToNextPage
-                                  : null,
-                              child: const Text('Next'),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
+          ),
+          if (_totalPages > 1)
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ElevatedButton(
+                    onPressed: _currentPage > 1 ? _goToPreviousPage : null,
+                    child: const Text('Previous'),
+                  ),
+                  Text('Page $_currentPage out of $_totalPages'),
+                  ElevatedButton(
+                    onPressed:
+                        _currentPage < _totalPages ? _goToNextPage : null,
+                    child: const Text('Next'),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
