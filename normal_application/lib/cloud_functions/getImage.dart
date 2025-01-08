@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
-import 'dart:typed_data';
 import 'package:normal_application/cloud_functions/utils.dart'; // Import IMAGE_EXTENSION
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -36,7 +35,7 @@ Future<ImageProvider> fetchImageForSmartphone(String title,
   }
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    throw Exception("Użytkownik niezalogowany");
+    throw Exception("User not logged in");
   }
   final idToken = await user.getIdToken();
   final response = await http.get(
@@ -49,7 +48,7 @@ Future<ImageProvider> fetchImageForSmartphone(String title,
     return MemoryImage(response.bodyBytes);
   } else {
     throw Exception(
-        "Błąd Cloud Function: ${response.statusCode} ${response.reasonPhrase}");
+        "Cloud Function error: ${response.statusCode} ${response.reasonPhrase}");
   }
 }
 

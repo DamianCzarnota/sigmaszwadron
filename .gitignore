@@ -45,3 +45,4 @@ key.properties
 **/*.pflist
 **/firebase_options.dart
 .idea
+*pycache*
