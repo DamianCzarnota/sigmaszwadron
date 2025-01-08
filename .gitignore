@@ -41,8 +41,7 @@ key.properties
 **/*.keystore
 **/*.jks
 
-**/*.json
-**/*.pflist
-**/firebase_options.dart
-.idea
+**/GoogleService-Info.plist
+**/google-services.json
+**/firebase_app_id_file.json
 *pycache*
