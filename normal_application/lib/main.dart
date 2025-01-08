@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:normal_application/titleListScreen.dart';
 
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -14,9 +16,6 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  final String email = 'testuser@sigmaszwadron.com';
-  final String password = 'testuser';
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -36,7 +35,7 @@ class MyApp extends StatelessWidget {
               return TitleListScreen();
             } else {
               return Scaffold(
-                body: Center(child: Text('Nie udało się zalogować')),
+                body: Center(child: Text('Failed to login')),
               );
             }
           }
@@ -47,11 +46,17 @@ class MyApp extends StatelessWidget {
 
   Future<User?> _signIn() async {
     try {
+      String email = dotenv.env['USER_EMAIL'] ?? '';
+      String password = dotenv.env['USER_PASSWORD'] ?? '';
+
+      if (email.isEmpty || password.isEmpty) {
+        throw Exception("No creditentials stored in .env file");
+      }
       UserCredential userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
       return userCredential.user;
     } catch (e) {
-      print('Błąd logowania: $e');
+      print('Login error: $e');
       return null;
     }
   }

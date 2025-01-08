@@ -36,9 +36,10 @@ class _TitleListScreenState extends State<TitleListScreen> {
         Map<dynamic, dynamic> data = snapshot.value as Map<dynamic, dynamic>;
         data.forEach((key, value) {
           if (value is Map) {
-            final title = value['title'] as String? ?? 'Brak tytułu';
+            final title = value['title'] as String? ?? 'no title';
             final userTitle = value['userTitle'] as String?;
-            final description = value['description'] as String? ?? 'Brak opisu';
+            final description =
+                value['description'] as String? ?? 'no description';
             items.add(ImageItem(
               id: key,
               title: title,
@@ -62,7 +63,7 @@ class _TitleListScreenState extends State<TitleListScreen> {
         });
       }
     } catch (e) {
-      print('Błąd pobierania danych z Realtime Database: $e');
+      print('Realtime Database fetching error: $e');
       setState(() {
         _imageItems = [];
         _isLoading = false;
@@ -100,12 +101,12 @@ class _TitleListScreenState extends State<TitleListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lista Tytułów Obrazków'),
+        title: const Text('List of images'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _imageItems.isEmpty
-              ? const Center(child: Text('Brak obrazków'))
+              ? const Center(child: Text('no images'))
               : Column(
                   children: [
                     Expanded(
@@ -159,14 +160,14 @@ class _TitleListScreenState extends State<TitleListScreen> {
                             ElevatedButton(
                               onPressed:
                                   _currentPage > 1 ? _goToPreviousPage : null,
-                              child: const Text('Poprzednia'),
+                              child: const Text('Previous'),
                             ),
-                            Text('Strona $_currentPage z $_totalPages'),
+                            Text('Page $_currentPage out of $_totalPages'),
                             ElevatedButton(
                               onPressed: _currentPage < _totalPages
                                   ? _goToNextPage
                                   : null,
-                              child: const Text('Następna'),
+                              child: const Text('Next'),
                             ),
                           ],
                         ),

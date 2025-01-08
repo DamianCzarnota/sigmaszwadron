@@ -5,7 +5,6 @@ import 'package:normal_application/cloud_functions/getImage.dart';
 import 'package:normal_application/imageItem.dart';
 import 'package:normal_application/cloud_functions/utils.dart';
 
-
 class ImageDetailScreen extends StatefulWidget {
   final ImageItem imageItem;
 
@@ -44,28 +43,27 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edytuj'),
+        title: const Text('Edit'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: newUserTitleController,
-              decoration:
-                  const InputDecoration(labelText: 'Nowy tytuł (userTitle)'),
+              decoration: const InputDecoration(labelText: 'New title'),
             ),
             TextField(
               controller: newDescriptionController,
-              decoration: const InputDecoration(labelText: 'Opis'),
+              decoration: const InputDecoration(labelText: 'Description'),
             ),
           ],
         ),
         actions: [
           TextButton(
-            child: const Text('Anuluj'),
+            child: const Text('Cancel'),
             onPressed: () => Navigator.pop(ctx),
           ),
           TextButton(
-            child: const Text('Zapisz'),
+            child: const Text('Save'),
             onPressed: () async {
               final ref =
                   FirebaseDatabase.instance.ref('images/${_imageItem.id}');
@@ -91,7 +89,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
     if (snapshot.exists && snapshot.value is Map) {
       final data = snapshot.value as Map;
       final userTitle = data['userTitle'] as String?;
-      final description = data['description'] as String? ?? 'Brak opisu';
+      final description = data['description'] as String? ?? 'No title';
 
       final updatedItem = ImageItem(
         id: _imageItem.id,
@@ -126,7 +124,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError || !snapshot.hasData) {
             print(snapshot.error);
-            return const Center(child: Text("Błąd wczytywania obrazu:"));
+            return const Center(child: Text("Error fetching image:"));
           } else {
             final imageProvider = snapshot.data!;
             return SafeArea(
