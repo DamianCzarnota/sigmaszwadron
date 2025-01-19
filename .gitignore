@@ -43,5 +43,6 @@ key.properties
 
 **/GoogleService-Info.plist
 **/google-services.json
-**/firebase_app_id_file.json
+**/sigmaszwadron-firebase.json
+**/firebase_options.dart
 *pycache*

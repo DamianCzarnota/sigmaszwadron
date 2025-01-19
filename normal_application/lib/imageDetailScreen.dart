@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:normal_application/cloud_functions/getImage.dart';
 import 'package:normal_application/imageItem.dart';
 import 'package:normal_application/cloud_functions/utils.dart';
+import 'package:normal_application/loginScreen.dart';
 
 class ImageDetailScreen extends StatefulWidget {
   final ImageItem imageItem;
@@ -18,12 +20,14 @@ class ImageDetailScreen extends StatefulWidget {
 class _ImageDetailScreenState extends State<ImageDetailScreen> {
   late Future<ImageProvider> _imageProviderFuture;
   late ImageItem _imageItem;
+  User? _currentUser;
 
   @override
   void initState() {
     super.initState();
     _imageItem = widget.imageItem;
     _imageProviderFuture = _fetchImageProvider(_imageItem.title);
+    _currentUser = FirebaseAuth.instance.currentUser;
   }
 
   Future<ImageProvider> _fetchImageProvider(String title) async {
@@ -122,14 +126,26 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isAnonymous = _currentUser?.isAnonymous ?? false;
     return Scaffold(
       appBar: AppBar(
         title: Text(_imageItem.displayTitle),
         actions: [
+          if (!isAnonymous)
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: _editData,
+            ),
           IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _editData,
-          )
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => LoginScreen()),
+              );
+            },
+          ),
         ],
       ),
       body: FutureBuilder<ImageProvider>(
