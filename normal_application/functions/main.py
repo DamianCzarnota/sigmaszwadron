@@ -88,5 +88,5 @@ def generate_preview(request):
         return (output_buffer.getvalue(), 200, headers)
 
     except Exception as e:
-        print(f"Błąd serwera: {e}")
-        return (f"Błąd serwera: {e}", 500)
+        print(f"Server error: {e}")
+        return (f"Server error: {e}", 500)

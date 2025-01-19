@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:normal_application/imageDetailScreen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:normal_application/cloud_functions/getImage.dart';
 import 'package:normal_application/imageItem.dart';
 import 'package:normal_application/cloud_functions/utils.dart';
+import 'package:normal_application/loginScreen.dart';
 
 class TitleListScreen extends StatefulWidget {
   @override
@@ -122,7 +124,19 @@ class _TitleListScreenState extends State<TitleListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('List of images'),
+        title: const Text('NASA images'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => LoginScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
