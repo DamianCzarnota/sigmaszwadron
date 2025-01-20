@@ -1,125 +1,357 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:googleapis/storage/v1.dart';
+import 'package:googleapis_auth/auth_io.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'firebase_options.dart';
+import 'gcp_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:developer';
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: MetricsHome(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class MetricsHome extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _MetricsHomeState createState() => _MetricsHomeState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _MetricsHomeState extends State<MetricsHome> {
+  int _selectedIndex = 0;
 
-  void _incrementCounter() {
+  // Handle tab selection
+  void _onItemTapped(int index) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _selectedIndex = index;
     });
+  }
+
+  // Screens for each tab
+  final List<Widget> _tabs = [
+    StorageMetricsScreen(),
+    //PerformanceMetricsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _tabs[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.storage),
+            label: "Storage Metrics",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.speed),
+            label: "Performance Metrics",
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
+    );
+  }
+}
+
+class StorageMetricsScreen extends StatefulWidget {
+  @override
+  _StorageMetricsScreenState createState() => _StorageMetricsScreenState();
+}
+
+class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
+  late Future<Map<String, dynamic>> _bucketMetrics;
+
+  @override
+  void initState() {
+    super.initState();
+    _bucketMetrics = _fetchMetrics();
+  }
+
+  Future<Map<String, dynamic>> _fetchMetrics() async {
+    const bucketName = "sigmaszwadron.firebasestorage.app";
+    const serviceAccountKeyPath = "service_account_key.json";
+
+    final gcpService = GCPService(
+      bucketName: bucketName,
+      serviceAccountKeyPath: serviceAccountKeyPath,
+    );
+
+    return gcpService.fetchBucketMetrics();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text("Storage Metrics"),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _bucketMetrics,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text("Error: ${snapshot.error}"),
+            );
+          }
+          final metrics = snapshot.data!;
+          print(metrics);
+          return ListView(
+            padding: const EdgeInsets.all(16.0),
+            children: [
+              _buildMetricCard(
+                "Total Files",
+                metrics['Total Files'].toString() ?? "N/A",
+                Icons.storage,
+                Colors.blue,
+              ),
+              _buildMetricCard(
+                "Total Size",
+                metrics['Total Size (MB)'].toString() + " MB" ?? "N/A",
+                Icons.location_on,
+                Colors.green,
+              ),
+              _buildMetricCard(
+                "Largest File",
+                metrics['Largest File (MB)'].toString() + " MB" ?? "N/A",
+                Icons.class_,
+                Colors.orange,
+              ),
+              _buildMetricCard(
+                "Smallest File",
+                metrics['Smallest File (MB)'].toString() + " MB" ?? "N/A",
+                Icons.insert_drive_file,
+                Colors.purple,
+              ),
+              _buildChartCard(
+                "File Size Distribution",
+                metrics['File Size Distribution'],
+                 metrics['Total Files'],
+              ),
+            ],
+          );
+        },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+
+  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+    return Card(
+      child: ListTile(
+        leading: Icon(icon, size: 40, color: color),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(value, style: const TextStyle(fontSize: 18)),
+      ),
+    );
+  }
+  Widget _buildChartCard(String title, Map<String, int> distribution, int numberOfFiles) {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.pie_chart, size: 40, color: Colors.green),
+            title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          SizedBox(
+            height: 200,
+            child: PieChart(
+              PieChartData(
+                sections: distribution.entries.map((entry) {
+                  final percentage = entry.value / numberOfFiles;
+                  return PieChartSectionData(
+                    value: percentage * 100,
+                    title: "${entry.key}\n${(percentage * 100).toStringAsFixed(1)}%",
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
+class StorageChart extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return PieChart(
+      PieChartData(
+        sections: [
+          PieChartSectionData(
+            value: 40,
+            color: Colors.blue,
+            title: "Images",
+            radius: 50,
+          ),
+          PieChartSectionData(
+            value: 30,
+            color: Colors.green,
+            title: "Videos",
+            radius: 50,
+          ),
+          PieChartSectionData(
+            value: 20,
+            color: Colors.orange,
+            title: "Documents",
+            radius: 50,
+          ),
+          PieChartSectionData(
+            value: 10,
+            color: Colors.red,
+            title: "Others",
+            radius: 50,
+          ),
+        ],
+        sectionsSpace: 2,
+        centerSpaceRadius: 40,
+      ),
+    );
+  }
+}
+
+// class PerformanceMetricsScreen extends StatefulWidget {
+//   @override
+//   _PerformanceMetricsScreenState createState() =>
+//       _PerformanceMetricsScreenState();
+// }
+
+// class _PerformanceMetricsScreenState extends State<PerformanceMetricsScreen> {
+//   late Future<Map<String, dynamic>> _performanceMetrics;
+
+//    void initState() {
+//     super.initState();
+//     _performanceMetrics = _fetchMetrics();
+//     print(_performanceMetrics);
+//   }
+
+//   Future<Map<String, dynamic>> _fetchMetrics() async {
+//     const bucketName = "sigmaszwadron.firebasestorage.app";
+//     const serviceAccountKeyPath = "service_account_key.json";
+
+//     final gcpService = GCPService(
+//       bucketName: bucketName,
+//       serviceAccountKeyPath: serviceAccountKeyPath,
+//     );
+
+//     return gcpService.fetchPerformanceMetrics();
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       appBar: AppBar(
+//         title: const Text("Performance Metrics"),
+//       ),
+//       body: ListView(
+//         padding: const EdgeInsets.all(16.0),
+//         children: [
+//           _buildMetricCard(
+//             "API Latency",
+//             "ms",
+//             Icons.timer,
+//             Colors.orange,
+//           ),
+//           _buildMetricCard(
+//             "Requests Per Second",
+//             "mss",
+//             Icons.network_check,
+//             Colors.blue,
+//           ),
+//           _buildMetricCard(
+//             "Error Rate",
+//             "ms",
+//             Icons.error_outline,
+//             Colors.red,
+//           ),
+//           SizedBox(height: 20),
+//           Text(
+//             "Performance Over Time",
+//             style: Theme.of(context).textTheme.headlineSmall,
+//           ),
+//           SizedBox(height: 200, child: PerformanceChart()),
+//         ],
+//       ),
+//     );
+//   }
+
+//   Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+//     return Card(
+//       child: ListTile(
+//         leading: Icon(icon, size: 40, color: color),
+//         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+//         subtitle: Text(value, style: const TextStyle(fontSize: 18)),
+//       ),
+//     );
+//   }
+// }
+
+// class PerformanceChart extends StatelessWidget {
+//   @override
+//   Widget build(BuildContext context) {
+//     return LineChart(
+//       LineChartData(
+//         lineBarsData: [
+//           LineChartBarData(
+//             isCurved: true,
+//             spots: [
+//               FlSpot(0, 200),
+//               FlSpot(1, 180),
+//               FlSpot(2, 220),
+//               FlSpot(3, 160),
+//               FlSpot(4, 200),
+//             ],
+//             barWidth: 4,
+//             belowBarData: BarAreaData(show: false),
+//           ),
+//         ],
+//         titlesData: FlTitlesData(
+//           leftTitles: AxisTitles(
+//             sideTitles: SideTitles(
+//               showTitles: true,
+//               interval: 50,
+//               getTitlesWidget: (value, meta) {
+//                 return Text(
+//                   value.toString(),
+//                   style: const TextStyle(fontSize: 10),
+//                 );
+//               },
+//             ),
+//           ),
+//           bottomTitles: AxisTitles(
+//             sideTitles: SideTitles(
+//               showTitles: true,
+//               interval: 1,
+//               getTitlesWidget: (value, meta) {
+//                 return Text(
+//                   'Day ${value.toInt()}',
+//                   style: const TextStyle(fontSize: 10),
+//                 );
+//               },
+//             ),
+//           ),
+//         ),
+//         gridData: FlGridData(show: true),
+//       ),
+//     );
+//   }
+// }
