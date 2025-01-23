@@ -95,9 +95,10 @@ class ImageDownloader:
             error_message = f"Simulated error for {image_title} at {image_url}"
             print(error_message)
             alert = {
-                "title": image_title,
+                "isRead": False,
                 "error": "Simulated error",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "acknowledgeDate": datetime.now().isoformat()
             }
             alert_service.write_alert(alert)
             return None
@@ -115,9 +116,10 @@ class ImageDownloader:
             error_message = f"Failed to download {image_title} from {image_url}: {e}"
             print(error_message)
             alert = {
-                "title": image_title,
+                "isRead": False,
                 "error": str(e),
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "acknowledgeDate": datetime.now().isoformat()
             }
             alert_service.write_alert(alert)
             return None

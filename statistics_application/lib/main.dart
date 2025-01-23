@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'firebase_options.dart'; 
 import 'package:intl/intl.dart';
+import 'dart:async';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,8 @@ class MetricsHome extends StatefulWidget {
 
 class _MetricsHomeState extends State<MetricsHome> {
   int _selectedIndex = 0;
+  bool _loadAlerts = false;
+  bool _hasUnreadAlerts = false;
 
   // Handle tab selection
   void _onItemTapped(int index) {
@@ -60,23 +63,53 @@ class _MetricsHomeState extends State<MetricsHome> {
     AlertsScreen()
   ];
 
+  void _checkForUnreadAlerts() async {
+    final alerts = await AlertsDownloader().fetchAlerts(false);
+    setState(() {
+      _hasUnreadAlerts = alerts.isNotEmpty;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForUnreadAlerts(); 
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _tabs[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        items: const [
+        items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.storage),
             label: "Storage Metrics",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
+            icon: Stack(
+              children: [
+                Icon(Icons.notifications),
+                if (_hasUnreadAlerts) // Show red dot if there are unread alerts
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             label: 'Alerts',
-          )
+          ),
         ],
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        onTap: _onItemTapped, // Call _checkForUnreadAlerts when switching to Alerts tab
       ),
     );
   }
@@ -92,7 +125,7 @@ class StorageMetricsScreen extends StatefulWidget {
 class _AlertsScreenState extends State<AlertsScreen> {
   final AlertsDownloader _alertsDownloader = AlertsDownloader();
   late Future<List<Alert>> _alertsFuture;
-  bool _showReadAlerts = false; // Toggle to control visibility of read alerts
+  bool _showReadAlerts = false;
 
   @override
   void initState() {
@@ -102,9 +135,11 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
   void _loadAlerts() {
     setState(() {
-      _alertsFuture = _alertsDownloader.fetchAlerts();
+      _alertsFuture = _alertsDownloader.fetchAlerts(_showReadAlerts);
     });
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +152,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
             onChanged: (value) {
               setState(() {
                 _showReadAlerts = value;
+                _loadAlerts();
               });
             },
           ),
@@ -153,8 +189,21 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
               return ListTile(
                 title: Text(alert.message),
-                subtitle: Text(
-                  DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.parse(alert.timestamp)),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+            
+                    Text(
+                      'Timestamp: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.parse(alert.timestamp))}',
+                      style: TextStyle(fontSize: 12),
+                    ),
+           
+                    if (alert.isRead && alert.acknowledgeDate != null)
+                      Text(
+                        'Acknowledge Date: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.parse(alert.acknowledgeDate!))}',
+                        style: TextStyle(fontSize: 12, color: Colors.green),
+                      ),
+                  ],
                 ),
                 trailing: alert.isRead
                     ? const Icon(Icons.check, color: Colors.green)
@@ -165,7 +214,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
                             await FirebaseDatabase.instance
                                 .ref('alerts/${alert.id}')
                                 .update({'isRead': true});
-                            _loadAlerts(); // Refresh alerts after marking as read
+                            await FirebaseDatabase.instance
+                                .ref('alerts/${alert.id}')
+                                .update({
+                                  'isRead': true,
+                                  'acknowledgeDate': DateTime.now().toIso8601String(),
+                                });
+                            _loadAlerts();
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(

@@ -6,12 +6,14 @@ class Alert {
   final String message;
   final String timestamp;
   final bool isRead;
+  final String acknowledgeDate;
 
   Alert({
     required this.id,
     required this.message,
     required this.timestamp,
     required this.isRead,
+    required this.acknowledgeDate,
   });
 
   factory Alert.fromMap(String id, Map<dynamic, dynamic> data) {
@@ -20,6 +22,7 @@ class Alert {
       message: data['error'] ?? 'No error',
       timestamp: data['timestamp'] ?? '',
       isRead: data['isRead'] ?? false,
+      acknowledgeDate: data['acknowledgeDate'] ?? '',
     );
   }
 }
@@ -27,7 +30,7 @@ class Alert {
 class AlertsDownloader {
   final DatabaseReference _alertsRef = FirebaseDatabase.instance.ref('alerts');
 
-  Future<List<Alert>> fetchAlerts() async {
+  Future<List<Alert>> fetchAlerts(bool _showReadAlerts) async {
     try {
       final snapshot = await _alertsRef.get();
 
@@ -40,7 +43,9 @@ class AlertsDownloader {
 
 
       return data.entries
-          .where((entry) => entry.value['isRead'] != true)
+          .where((entry) =>
+              _showReadAlerts ||
+              !(entry.value['isRead'] ?? false))
           .map((entry) => Alert.fromMap(entry.key, Map.from(entry.value)))
           .toList();
     } catch (e) {
