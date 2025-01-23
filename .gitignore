@@ -45,3 +45,4 @@ key.properties
 **/google-services.json
 **/firebase_app_id_file.json
 *pycache*
+**/*.json

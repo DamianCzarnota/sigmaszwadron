@@ -96,7 +96,6 @@ class ImageDownloader:
             print(error_message)
             alert = {
                 "title": image_title,
-                "url": image_url,
                 "error": "Simulated error",
                 "timestamp": datetime.now().isoformat()
             }
@@ -117,7 +116,6 @@ class ImageDownloader:
             print(error_message)
             alert = {
                 "title": image_title,
-                "url": image_url,
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
