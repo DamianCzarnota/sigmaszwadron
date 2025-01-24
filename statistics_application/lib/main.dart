@@ -13,7 +13,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'firebase_options.dart'; 
+import 'firebase_options.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 
@@ -58,10 +58,7 @@ class _MetricsHomeState extends State<MetricsHome> {
   }
 
   // Screens for each tab
-  final List<Widget> _tabs = [
-    StorageMetricsScreen(),
-    AlertsScreen()
-  ];
+  final List<Widget> _tabs = [StorageMetricsScreen(), AlertsScreen()];
 
   void _checkForUnreadAlerts() async {
     final alerts = await AlertsDownloader().fetchAlerts(false);
@@ -73,7 +70,7 @@ class _MetricsHomeState extends State<MetricsHome> {
   @override
   void initState() {
     super.initState();
-    _checkForUnreadAlerts(); 
+    _checkForUnreadAlerts();
   }
 
   @override
@@ -109,7 +106,8 @@ class _MetricsHomeState extends State<MetricsHome> {
           ),
         ],
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped, // Call _checkForUnreadAlerts when switching to Alerts tab
+        onTap:
+            _onItemTapped, // Call _checkForUnreadAlerts when switching to Alerts tab
       ),
     );
   }
@@ -119,8 +117,6 @@ class StorageMetricsScreen extends StatefulWidget {
   @override
   _StorageMetricsScreenState createState() => _StorageMetricsScreenState();
 }
-
-
 
 class _AlertsScreenState extends State<AlertsScreen> {
   final AlertsDownloader _alertsDownloader = AlertsDownloader();
@@ -138,8 +134,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
       _alertsFuture = _alertsDownloader.fetchAlerts(_showReadAlerts);
     });
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -192,12 +186,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-            
                     Text(
                       'Timestamp: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.parse(alert.timestamp))}',
                       style: TextStyle(fontSize: 12),
                     ),
-           
                     if (alert.isRead && alert.acknowledgeDate != null)
                       Text(
                         'Acknowledge Date: ${DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.parse(alert.acknowledgeDate!))}',
@@ -217,9 +209,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
                             await FirebaseDatabase.instance
                                 .ref('alerts/${alert.id}')
                                 .update({
-                                  'isRead': true,
-                                  'acknowledgeDate': DateTime.now().toIso8601String(),
-                                });
+                              'isRead': true,
+                              'acknowledgeDate':
+                                  DateTime.now().toIso8601String(),
+                            });
                             _loadAlerts();
                           } catch (e) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -239,10 +232,6 @@ class _AlertsScreenState extends State<AlertsScreen> {
   }
 }
 
-
-
-
-
 class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
   late Future<Map<String, dynamic>> _bucketMetrics;
 
@@ -254,7 +243,7 @@ class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
 
   Future<Map<String, dynamic>> _fetchMetrics() async {
     const bucketName = "sigmaszwadron.firebasestorage.app";
-    const serviceAccountKeyPath = "service_account_key.json";
+    const serviceAccountKeyPath = "assets/service_account_key.json";
 
     final gcpService = GCPService(
       bucketName: bucketName,
@@ -312,7 +301,7 @@ class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
               _buildChartCard(
                 "File Size Distribution",
                 metrics['File Size Distribution'],
-                 metrics['Total Files'],
+                metrics['Total Files'],
               ),
             ],
           );
@@ -321,7 +310,8 @@ class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
     );
   }
 
-  Widget _buildMetricCard(String title, String value, IconData icon, Color color) {
+  Widget _buildMetricCard(
+      String title, String value, IconData icon, Color color) {
     return Card(
       child: ListTile(
         leading: Icon(icon, size: 40, color: color),
@@ -330,7 +320,21 @@ class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
       ),
     );
   }
-  Widget _buildChartCard(String title, Map<String, int> distribution, int numberOfFiles) {
+
+  Widget _buildChartCard(
+    String title,
+    Map<String, int> distribution,
+    int numberOfFiles,
+  ) {
+    if (numberOfFiles == 0 || distribution.isEmpty) {
+      return Card(
+        child: ListTile(
+          leading: Icon(Icons.pie_chart, size: 40, color: Colors.green),
+          title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text('Brak danych do wyświetlenia'),
+        ),
+      );
+    }
     return Card(
       child: Column(
         children: [
@@ -346,7 +350,8 @@ class _StorageMetricsScreenState extends State<StorageMetricsScreen> {
                   final percentage = entry.value / numberOfFiles;
                   return PieChartSectionData(
                     value: percentage * 100,
-                    title: "${entry.key}\n${(percentage * 100).toStringAsFixed(1)}%",
+                    title:
+                        "${entry.key}\n${(percentage * 100).toStringAsFixed(1)}%",
                   );
                 }).toList(),
               ),
