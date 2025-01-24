@@ -76,14 +76,32 @@ class FirebaseDatabaseHandler:
         result = ref.set(metadata)
         print(result)
         print(f"Data saved to Firebase Realtime Database at path: {self.path}{id}")
+    def write_alert(self, alert):
+        alert_id = str(uuid.uuid4())
+        ref = db.reference("alerts/" + alert_id)
+        result = ref.set(alert)
+        print(f"Alert logged to Firebase Realtime Database at path: alerts/{alert_id}")
   
 class ImageDownloader:
-
     def __init__(self):
         pass
         
 
-    def download_image(self, image_url, image_title):
+    def download_image(self, image_url, image_title, alert_service):
+
+        simulate_error = os.environ.get("SIMULATE_DOWNLOAD_ERROR", "false").lower() == "true"
+
+        if simulate_error:
+            error_message = f"Simulated error for {image_title} at {image_url}"
+            print(error_message)
+            alert = {
+                "isRead": False,
+                "error": "Simulated error",
+                "timestamp": datetime.now().isoformat(),
+                "acknowledgeDate": datetime.now().isoformat()
+            }
+            alert_service.write_alert(alert)
+            return None
 
         try:
             print(f"Downloading: {image_title} from {image_url}")
@@ -94,9 +112,17 @@ class ImageDownloader:
 
             return image_content
 
-            
         except httpx.RequestError as e:
-            print(f"Failed to download {image_title} from {image_url}: {e}")
+            error_message = f"Failed to download {image_title} from {image_url}: {e}"
+            print(error_message)
+            alert = {
+                "isRead": False,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat(),
+                "acknowledgeDate": datetime.now().isoformat()
+            }
+            alert_service.write_alert(alert)
+            return None
 
 def get_random_date(start_year=2016, end_year=2024):
     
@@ -141,7 +167,9 @@ async def main():
                     "date": item["date"]
                     }
                 image_title = item.get("title", f"image_{i}").replace(" ", "_").replace("/", "-")
-                image = downloader_service.download_image(item["url"],item["title"])
+                image = downloader_service.download_image(item["url"],item["title"],database_service)
+                if(image is None):
+                    return None
                 public_url = uploader_service.upload_image(image, image_title + ".jpg", unique_id)
                 metadata["url"] = public_url
                 database_service.write_metadata(metadata,unique_id)
