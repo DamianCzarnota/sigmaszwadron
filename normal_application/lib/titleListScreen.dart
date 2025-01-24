@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:normal_application/imageDetailScreen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:normal_application/cloud_functions/getImage.dart';
 import 'package:normal_application/imageItem.dart';
 import 'package:normal_application/cloud_functions/utils.dart';
+import 'package:normal_application/loginScreen.dart';
 
 class TitleListScreen extends StatefulWidget {
   @override
@@ -12,7 +14,7 @@ class TitleListScreen extends StatefulWidget {
 
 class _TitleListScreenState extends State<TitleListScreen> {
   final DatabaseReference _databaseRef =
-      FirebaseDatabase.instance.ref('images');
+  FirebaseDatabase.instance.ref('images');
   List<ImageItem> _allImageItems = [];
   List<ImageItem> _filteredImageItems = [];
   bool _isLoading = true;
@@ -38,12 +40,14 @@ class _TitleListScreenState extends State<TitleListScreen> {
           imageItems.add(ImageItem.fromMap(value, key));
         });
 
+        if (!mounted) return; // Sprawdzenie, czy widget jest zamontowany
         setState(() {
           _allImageItems = imageItems;
           _applyFilter();
           _isLoading = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           _allImageItems = [];
           _filteredImageItems = [];
@@ -54,9 +58,11 @@ class _TitleListScreenState extends State<TitleListScreen> {
       }
     } catch (e) {
       print('Error fetching data: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -83,6 +89,7 @@ class _TitleListScreenState extends State<TitleListScreen> {
   void _updateCurrentPageItems() {
     final startIndex = (_currentPage - 1) * _itemsPerPage;
     final endIndex = startIndex + _itemsPerPage;
+    if (!mounted) return;
     setState(() {
       _currentPageItems = _filteredImageItems.sublist(
         startIndex,
@@ -119,10 +126,28 @@ class _TitleListScreenState extends State<TitleListScreen> {
   }
 
   @override
+  void dispose() {
+    // Tu można anulować inne operacje, jeśli są aktywne (np. Streamy)
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('List of images'),
+        title: const Text('NASA images'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => LoginScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -143,46 +168,47 @@ class _TitleListScreenState extends State<TitleListScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredImageItems.isEmpty
-                    ? const Center(child: Text('No images'))
-                    : ListView.builder(
-                        itemCount: _currentPageItems.length,
-                        itemBuilder: (context, index) {
-                          final item = _currentPageItems[index];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 8.0, horizontal: 16.0),
-                            child: Card(
-                              elevation: 2.0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.0),
-                              ),
-                              child: ListTile(
-                                title: Text(
-                                  item.displayTitle,
-                                  style: const TextStyle(fontSize: 16.0),
-                                ),
-                                leading: PreviewWidget(title: item.title),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ImageDetailScreen(imageItem: item),
-                                    ),
-                                  ).then((_) {
-                                    _fetchTitlesFromDatabase();
-                                  });
-                                },
-                              ),
-                            ),
-                          );
-                        },
+                ? const Center(child: Text('No images'))
+                : ListView.builder(
+              itemCount: _currentPageItems.length,
+              itemBuilder: (context, index) {
+                final item = _currentPageItems[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 8.0, horizontal: 16.0),
+                  child: Card(
+                    elevation: 2.0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        item.displayTitle,
+                        style: const TextStyle(fontSize: 16.0),
                       ),
+                      leading: PreviewWidget(title: item.title),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ImageDetailScreen(imageItem: item),
+                          ),
+                        );
+                        if (mounted) {
+                          _fetchTitlesFromDatabase();
+                        }
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
           if (_totalPages > 1)
             Padding(
               padding:
-                  const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+              const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -193,7 +219,7 @@ class _TitleListScreenState extends State<TitleListScreen> {
                   Text('Page $_currentPage out of $_totalPages'),
                   ElevatedButton(
                     onPressed:
-                        _currentPage < _totalPages ? _goToNextPage : null,
+                    _currentPage < _totalPages ? _goToNextPage : null,
                     child: const Text('Next'),
                   ),
                 ],
